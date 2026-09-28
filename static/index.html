@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Private live-location sharing Web GIS with PostgreSQL and PostGIS track history.">
+<title>Live Location Web GIS</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+:root{
+  --bg:#eef3f8;
+  --surface:#ffffff;
+  --surface-soft:#f8fafc;
+  --border:#dbe3ec;
+  --text:#122033;
+  --muted:#66758a;
+  --primary:#0f766e;
+  --primary-strong:#0b5f59;
+  --danger:#b42318;
+  --danger-soft:#fff2f0;
+  --success:#087443;
+  --success-soft:#eaf8f1;
+  --warning:#8a5a00;
+  --warning-soft:#fff7df;
+  --shadow:0 10px 30px rgba(15,23,42,.08);
+  --radius:18px;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+body{overflow-x:hidden}
+button,input,select{font:inherit}
+button{border:0;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}
+.hidden{display:none!important}
+
+.app-shell{min-height:100vh;display:flex;flex-direction:column}
+.topbar{
+  position:sticky;top:0;z-index:1000;
+  background:rgba(15,23,42,.96);color:#fff;
+  padding:calc(12px + env(safe-area-inset-top)) 16px 12px;
+  box-shadow:0 4px 18px rgba(2,6,23,.18);
+}
+.topbar-inner{max-width:1400px;width:100%;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.brand-mark{width:42px;height:42px;border-radius:14px;background:#fff;color:#0f172a;display:grid;place-items:center;font-size:22px;flex:0 0 auto}
+.brand-copy{min-width:0}
+.brand-title{font-size:16px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand-subtitle{font-size:11px;color:rgba(255,255,255,.72);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.connection-pill{display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);border-radius:999px;padding:8px 10px;font-size:11px;font-weight:700;white-space:nowrap}
+.connection-dot{width:8px;height:8px;border-radius:50%;background:#94a3b8}
+.connection-pill.online .connection-dot{background:#4ade80}
+.connection-pill.offline .connection-dot{background:#fb7185}
+
+main.app-main{flex:1;width:100%;max-width:1400px;margin:0 auto;padding:16px}
+
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.home-panel{padding:18px}
+.hero{padding:6px 2px 14px}
+.eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--primary);margin-bottom:8px}
+.hero h1{margin:0;font-size:28px;line-height:1.1;letter-spacing:-.02em}
+.hero p{margin:9px 0 0;color:var(--muted);font-size:14px;line-height:1.6;max-width:760px}
+
+.section-title{font-size:17px;font-weight:800;margin:0 0 8px}
+.section-copy{margin:0;color:var(--muted);font-size:13px;line-height:1.6}
+.section-block{padding:18px;border:1px solid var(--border);border-radius:16px;background:var(--surface-soft);margin-top:14px}
+
+.form-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end;margin-top:14px}
+.field{display:flex;flex-direction:column;gap:7px}
+.field label{font-size:11px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.05em}
+.select,input[type="text"]{width:100%;border:1px solid #cfd8e3;background:#fff;border-radius:12px;padding:12px 13px;color:var(--text);outline:none;min-height:46px}
+.select:focus,input[type="text"]:focus{border-color:#7aa9a4;box-shadow:0 0 0 3px rgba(15,118,110,.11)}
+
+.button-row{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+.btn{min-height:46px;padding:11px 15px;border-radius:12px;font-weight:800;transition:transform .08s ease,background .15s ease,box-shadow .15s ease}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--primary);color:#fff;box-shadow:0 6px 16px rgba(15,118,110,.18)}
+.btn.primary:hover{background:var(--primary-strong)}
+.btn.secondary{background:#e9eef4;color:#233247}
+.btn.secondary:hover{background:#dde5ee}
+.btn.danger{background:var(--danger);color:#fff}
+.btn.danger:hover{background:#8f1c13}
+.btn.block{width:100%}
+.btn.small{min-height:40px;padding:9px 12px;border-radius:10px;font-size:12px}
+
+.status{margin-top:12px;padding:12px 13px;border-radius:12px;background:#eef3f7;border:1px solid #dbe4ed;font-size:12px;line-height:1.5;color:#35465b}
+.status.active{background:var(--success-soft);border-color:#ccebdc;color:var(--success)}
+.status.error{background:#fff1f1;border-color:#f3cccc;color:#a11a1a}
+.notice{margin-top:11px;padding:12px 13px;border-radius:12px;background:var(--warning-soft);border:1px solid #efdca3;color:var(--warning);font-size:12px;line-height:1.5}
+
+.share-box{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:12px}
+.share-box .btn{min-width:110px}
+
+.home-split{display:grid;grid-template-columns:1.08fr .92fr;gap:14px;margin-top:14px}
+.info-card{padding:16px;border:1px solid var(--border);border-radius:16px;background:#fff}
+.info-list{display:grid;gap:10px;margin-top:12px}
+.info-item{display:flex;align-items:flex-start;gap:10px}
+.info-icon{width:30px;height:30px;border-radius:10px;background:#edf4f3;display:grid;place-items:center;flex:0 0 auto}
+.info-item strong{display:block;font-size:13px}
+.info-item span{display:block;font-size:12px;color:var(--muted);margin-top:2px;line-height:1.45}
+
+#sessionPanel{min-width:0}
+.session-shell{display:flex;flex-direction:column;gap:12px}
+.session-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px}
+.session-heading{min-width:0}
+.session-title-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.session-title{font-size:19px;font-weight:850;margin:0}
+.role-badge{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;font-size:10px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;background:#edf2f7;color:#475569}
+.role-badge.host{background:#e7f6f3;color:var(--primary)}
+.role-badge.viewer{background:#eef2ff;color:#4338ca}
+.session-subtitle{margin-top:4px;color:var(--muted);font-size:12px}
+.toolbar-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+
+.session-layout{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:12px;align-items:stretch}
+.map-panel{padding:0;overflow:hidden;min-height:0}
+#map{height:calc(100vh - 160px);min-height:560px;width:100%;border-radius:var(--radius)}
+
+.side-panel{padding:13px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.side-section{border:1px solid var(--border);border-radius:15px;background:#fff;padding:12px}
+.side-section h3{margin:0 0 9px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#64748b}
+.metrics-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.metric{padding:10px;border-radius:12px;background:var(--surface-soft);border:1px solid #e6ebf1;min-width:0}
+.metric .label{display:block;font-size:9px;font-weight:800;color:#718096;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.metric .value{display:block;font-size:13px;font-weight:850;line-height:1.25;word-break:break-word}
+.location-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.location-card{padding:10px;border-radius:12px;background:var(--surface-soft);border:1px solid #e6ebf1;min-width:0}
+.location-card .label{display:block;font-size:9px;font-weight:800;color:#718096;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.location-card .value{display:block;font-size:12px;font-weight:800;word-break:break-word}
+.side-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+
+.mobile-action-bar{display:none}
+.session-share{padding:9px 11px;border-radius:12px;background:#f7fafc;border:1px dashed #cad6e4}
+.session-share .share-box{margin-top:8px}
+.session-share input{font-size:11px}
+
+.dot{width:19px;height:19px;border-radius:50%;background:#0f766e;border:3px solid #fff;box-shadow:0 0 0 3px rgba(15,118,110,.22),0 3px 10px rgba(15,23,42,.28)}
+
+.footer-note{padding:12px 2px calc(8px + env(safe-area-inset-bottom));font-size:11px;color:#718096;text-align:center}
+
+@media (max-width: 980px){
+  main.app-main{padding:10px}
+  .home-split{grid-template-columns:1fr}
+  .session-layout{grid-template-columns:1fr}
+  #map{height:62vh;min-height:420px}
+  .side-panel{display:grid;grid-template-columns:1fr 1fr;align-items:start}
+  .side-panel .side-section:first-child,.side-panel .session-share,.side-panel .notice,.side-panel #revokeBtn{grid-column:1/-1}
+}
+
+@media (max-width: 680px){
+  main.app-main{padding:0}
+  .topbar{padding-left:13px;padding-right:13px}
+  .brand-mark{width:38px;height:38px;border-radius:12px;font-size:20px}
+  .brand-title{font-size:14px}
+  .brand-subtitle{font-size:10px}
+  .connection-pill{padding:7px 9px}
+
+  .home-panel{border-radius:0;box-shadow:none;border-left:0;border-right:0;padding:15px 13px}
+  .hero h1{font-size:25px}
+  .hero p{font-size:13px}
+  .section-block,.info-card{border-radius:15px;padding:14px}
+  .form-row{grid-template-columns:1fr}
+  .form-row .btn{width:100%}
+  .share-box{grid-template-columns:1fr}
+  .share-box .btn{width:100%}
+  .button-row{display:grid;grid-template-columns:1fr 1fr}
+  .button-row .btn{width:100%}
+
+  .session-shell{gap:0}
+  .session-toolbar{border-radius:0;border-left:0;border-right:0;padding:10px 12px;position:relative;z-index:900}
+  .session-title{font-size:16px}
+  .session-subtitle{font-size:11px}
+  .toolbar-actions{display:none}
+  .session-layout{display:flex;flex-direction:column;gap:0}
+  .map-panel{border-radius:0;border-left:0;border-right:0}
+  #map{height:60vh;min-height:390px;border-radius:0}
+  .side-panel{display:block;padding:10px 10px 90px;background:var(--bg)}
+  .side-section{padding:11px;border-radius:14px;margin-bottom:9px}
+  .metrics-grid{grid-template-columns:1fr 1fr 1fr}
+  .metric{padding:9px 8px}
+  .metric .value{font-size:12px}
+  .location-grid{grid-template-columns:1fr 1fr}
+  .mobile-action-bar{position:fixed;left:0;right:0;bottom:0;z-index:1200;display:grid;grid-template-columns:1.35fr 1.35fr 1fr;gap:7px;padding:9px 10px calc(9px + env(safe-area-inset-bottom));background:rgba(255,255,255,.96);border-top:1px solid var(--border);box-shadow:0 -8px 24px rgba(15,23,42,.10);backdrop-filter:blur(12px)}
+  .mobile-action-bar .btn{min-height:44px;padding:9px 8px;font-size:12px}
+  .mobile-action-bar .host-start{background:var(--primary);color:#fff}
+  .mobile-action-bar .host-stop{background:var(--danger);color:#fff}
+  .mobile-action-bar.viewer{grid-template-columns:1fr 1fr}
+  .footer-note{display:none}
+}
+
+@media (max-width: 390px){
+  .metrics-grid{grid-template-columns:1fr 1fr}
+  #map{height:57vh;min-height:360px}
+}
+</style>
+</head>
+
+<body>
+<div class="app-shell">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-mark">📍</div>
+        <div class="brand-copy">
+          <div class="brand-title">Live Location Web GIS</div>
+          <div class="brand-subtitle">Private sharing • PostGIS track history</div>
+        </div>
+      </div>
+      <div id="connectionPill" class="connection-pill">
+        <span class="connection-dot"></span>
+        <span id="connectionText">Ready</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <section id="homePanel" class="panel home-panel">
+      <div class="hero">
+        <div class="eyebrow">● Mobile-first Web GIS</div>
+        <h1>Share your live location privately</h1>
+        <p>Create a temporary link, start GPS, and let another person follow your location from a different network. Your session and track history are stored in PostgreSQL/PostGIS.</p>
+      </div>
+
+      <div class="section-block">
+        <h2 class="section-title">Create a live-location session</h2>
+        <p class="section-copy">Choose how long the link should remain active.</p>
+
+        <div class="form-row">
+          <div class="field">
+            <label for="duration">Expires after</label>
+            <select id="duration" class="select">
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="60" selected>1 hour</option>
+              <option value="120">2 hours</option>
+            </select>
+          </div>
+          <button id="createBtn" class="btn primary">Create Live Link</button>
+        </div>
+
+        <div id="createStatus" class="status hidden"></div>
+
+        <div id="createdBox" class="hidden">
+          <div class="share-box">
+            <input id="shareInput" type="text" readonly aria-label="Live share link">
+            <button id="copyBtn" class="btn secondary">Copy Link</button>
+          </div>
+          <div class="button-row" style="margin-top:10px">
+            <button id="openHostBtn" class="btn primary">Open Host View</button>
+            <button id="revokeCreatedBtn" class="btn danger">Revoke Link</button>
+          </div>
+          <div class="notice">Share only the viewer link. The private host secret stays in this browser.</div>
+        </div>
+      </div>
+
+      <div class="section-block">
+        <h2 class="section-title">Join an existing session</h2>
+        <p class="section-copy">Paste a <code>/share/...</code> link generated by this application.</p>
+        <div class="share-box">
+          <input id="joinInput" type="text" placeholder="https://your-domain/share/..." aria-label="Shared location link">
+          <button id="joinBtn" class="btn secondary">Open Shared Location</button>
+        </div>
+        <div class="notice">Link-based privacy: anyone who gets the viewer link can view the session until it expires or is revoked.</div>
+      </div>
+
+      <div class="home-split">
+        <div class="info-card">
+          <h2 class="section-title">What this phase includes</h2>
+          <div class="info-list">
+            <div class="info-item"><div class="info-icon">🔗</div><div><strong>Temporary private links</strong><span>Each session uses its own token and expiration time.</span></div></div>
+            <div class="info-item"><div class="info-icon">📍</div><div><strong>Live GPS updates</strong><span>High-accuracy browser geolocation is sent over WebSocket.</span></div></div>
+            <div class="info-item"><div class="info-icon">🗺️</div><div><strong>Track analytics</strong><span>Distance, duration and speed statistics come from PostGIS-backed history.</span></div></div>
+          </div>
+        </div>
+        <div class="info-card">
+          <h2 class="section-title">Privacy note</h2>
+          <p class="section-copy">This application is link-based rather than account-based. Treat the viewer link like a private invitation and revoke it when sharing is finished.</p>
+          <div class="status active" style="margin-top:12px"><b>Best practice:</b> use HTTPS for public GPS sharing.</div>
+        </div>
+      </div>
+
+      <div class="footer-note">Live Location Web GIS • Phase 5A UI redesign • Backend/API unchanged</div>
+    </section>
+
+    <section id="sessionPanel" class="hidden">
+      <div class="session-shell">
+        <div class="panel session-toolbar">
+          <div class="session-heading">
+            <div class="session-title-row">
+              <h2 id="sessionTitle" class="session-title">Live Location</h2>
+              <span id="roleBadge" class="role-badge">Connecting</span>
+            </div>
+            <div id="roleText" class="session-subtitle">Waiting for the real-time connection…</div>
+          </div>
+          <div class="toolbar-actions">
+            <button id="startBtn" class="btn primary hidden">Start Live Location</button>
+            <button id="stopBtn" class="btn danger hidden" disabled>Stop Location</button>
+            <button id="centerBtn" class="btn secondary" disabled>Center on Location</button>
+            <button id="backBtn" class="btn secondary">Back</button>
+          </div>
+        </div>
+
+        <div class="session-layout">
+          <main class="panel map-panel">
+            <div id="map"></div>
+          </main>
+
+          <aside class="panel side-panel">
+            <div id="sessionStatus" class="status" style="margin-top:0">Connecting…</div>
+
+            <div class="side-section">
+              <h3>Session</h3>
+              <div class="metrics-grid">
+                <div class="metric"><span class="label">Status</span><span class="value" id="sessionStatusValue">—</span></div>
+                <div class="metric"><span class="label">Expires</span><span class="value" id="expiresValue">—</span></div>
+                <div class="metric"><span class="label">Last update</span><span class="value" id="lastUpdateValue">—</span></div>
+              </div>
+            </div>
+
+            <div class="side-section">
+              <h3>Shared location</h3>
+              <div class="location-grid">
+                <div class="location-card"><span class="label">Latitude</span><span class="value" id="latValue">—</span></div>
+                <div class="location-card"><span class="label">Longitude</span><span class="value" id="lngValue">—</span></div>
+                <div class="location-card"><span class="label">Accuracy</span><span class="value" id="accuracyValue">—</span></div>
+                <div class="location-card"><span class="label">Speed</span><span class="value" id="speedValue">—</span></div>
+              </div>
+            </div>
+
+            <div class="side-section">
+              <h3>Track analytics</h3>
+              <div class="metrics-grid">
+                <div class="metric"><span class="label">Points</span><span class="value" id="pointCount">0</span></div>
+                <div class="metric"><span class="label">Distance</span><span class="value" id="distanceKm">0 km</span></div>
+                <div class="metric"><span class="label">Duration</span><span class="value" id="durationMin">0 min</span></div>
+                <div class="metric"><span class="label">Max speed</span><span class="value" id="maxSpeed">0 km/h</span></div>
+                <div class="metric"><span class="label">Avg speed</span><span class="value" id="avgSpeed">0 km/h</span></div>
+              </div>
+              <div class="side-buttons">
+                <button id="statsBtn" class="btn secondary small">Refresh Stats</button>
+                <button id="geojsonBtn" class="btn secondary small">Download Track</button>
+              </div>
+            </div>
+
+            <div class="session-share">
+              <div style="font-size:10px;font-weight:900;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Share this session</div>
+              <div class="share-box">
+                <input id="sessionShareInput" type="text" readonly aria-label="Current session share link">
+                <button id="sessionCopyBtn" class="btn secondary small">Copy</button>
+              </div>
+            </div>
+
+            <div id="hostNotice" class="notice hidden">You are the location owner. GPS points are being stored in PostgreSQL/PostGIS while tracking is active.</div>
+            <div id="viewerNotice" class="notice hidden">You are a viewer. This page is read-only and does not request your GPS location.</div>
+
+            <button id="revokeBtn" class="btn danger block hidden">Revoke Share Link</button>
+          </aside>
+        </div>
+
+        <div class="mobile-action-bar">
+          <button id="mobileStartBtn" class="btn host-start hidden">Start GPS</button>
+          <button id="mobileStopBtn" class="btn host-stop hidden" disabled>Stop GPS</button>
+          <button id="mobileCenterBtn" class="btn secondary" disabled>Center</button>
+          <button id="mobileBackBtn" class="btn secondary">Back</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+let map = null;
+let socket = null;
+let watchId = null;
+let token = null;
+let role = null;
+
+let marker = null;
+let accuracyCircle = null;
+let trackLine = null;
+let localTrack = [];
+
+const homePanel = document.getElementById("homePanel");
+const sessionPanel = document.getElementById("sessionPanel");
+const connectionPill = document.getElementById("connectionPill");
+const connectionText = document.getElementById("connectionText");
+
+const createBtn = document.getElementById("createBtn");
+const duration = document.getElementById("duration");
+const createStatus = document.getElementById("createStatus");
+const createdBox = document.getElementById("createdBox");
+const shareInput = document.getElementById("shareInput");
+const copyBtn = document.getElementById("copyBtn");
+const openHostBtn = document.getElementById("openHostBtn");
+const revokeCreatedBtn = document.getElementById("revokeCreatedBtn");
+
+const joinInput = document.getElementById("joinInput");
+const joinBtn = document.getElementById("joinBtn");
+
+const sessionTitle = document.getElementById("sessionTitle");
+const roleText = document.getElementById("roleText");
+const roleBadge = document.getElementById("roleBadge");
+const sessionStatus = document.getElementById("sessionStatus");
+
+const startBtn = document.getElementById("startBtn");
+const stopBtn = document.getElementById("stopBtn");
+const centerBtn = document.getElementById("centerBtn");
+const backBtn = document.getElementById("backBtn");
+const revokeBtn = document.getElementById("revokeBtn");
+
+const mobileStartBtn = document.getElementById("mobileStartBtn");
+const mobileStopBtn = document.getElementById("mobileStopBtn");
+const mobileCenterBtn = document.getElementById("mobileCenterBtn");
+const mobileBackBtn = document.getElementById("mobileBackBtn");
+const mobileActionBar = document.querySelector(".mobile-action-bar");
+
+const sessionStatusValue = document.getElementById("sessionStatusValue");
+const expiresValue = document.getElementById("expiresValue");
+const lastUpdateValue = document.getElementById("lastUpdateValue");
+
+const latValue = document.getElementById("latValue");
+const lngValue = document.getElementById("lngValue");
+const accuracyValue = document.getElementById("accuracyValue");
+const speedValue = document.getElementById("speedValue");
+
+const pointCount = document.getElementById("pointCount");
+const distanceKm = document.getElementById("distanceKm");
+const durationMin = document.getElementById("durationMin");
+const maxSpeed = document.getElementById("maxSpeed");
+const avgSpeed = document.getElementById("avgSpeed");
+const statsBtn = document.getElementById("statsBtn");
+const geojsonBtn = document.getElementById("geojsonBtn");
+
+const sessionShareInput = document.getElementById("sessionShareInput");
+const sessionCopyBtn = document.getElementById("sessionCopyBtn");
+const hostNotice = document.getElementById("hostNotice");
+const viewerNotice = document.getElementById("viewerNotice");
+
+function setConnection(text, online = false) {
+  connectionText.textContent = text;
+  connectionPill.classList.toggle("online", online);
+  connectionPill.classList.toggle("offline", !online && /offline|error/i.test(text));
+}
+
+function setStatus(el, message, type = "") {
+  el.innerHTML = message;
+  el.className = "status" + (type ? " " + type : "");
+}
+
+function tokenFromPath() {
+  const parts = window.location.pathname.split("/").filter(Boolean);
+  if (parts.length >= 2 && parts[0] === "share" && parts[1]) {
+    return decodeURIComponent(parts[1]);
+  }
+  return null;
+}
+
+function hostSecret() {
+  return token ? sessionStorage.getItem("host_secret_" + token) : null;
+}
+
+function saveHostSecret(value) {
+  if (token && value) {
+    sessionStorage.setItem("host_secret_" + token, value);
+  }
+}
+
+function currentShareUrl() {
+  return window.location.origin + "/share/" + encodeURIComponent(token || "");
+}
+
+function initMap() {
+  if (map) return;
+
+  map = L.map("map", { zoomControl: true }).setView([20, 0], 2);
+
+  const street = L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors"
+    }
+  ).addTo(map);
+
+  const satellite = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    {
+      maxZoom: 19,
+      attribution: "Tiles &copy; Esri"
+    }
+  );
+
+  L.control.layers({ "Street": street, "Satellite": satellite }).addTo(map);
+
+  trackLine = L.polyline([], { weight: 4, opacity: .82 }).addTo(map);
+
+  setTimeout(() => map.invalidateSize(), 200);
+}
+
+function locationIcon() {
+  return L.divIcon({
+    className: "",
+    html: '<div class="dot"></div>',
+    iconSize: [19, 19],
+    iconAnchor: [9.5, 9.5]
+  });
+}
+
+function renderLocation(location) {
+  const lat = Number(location.latitude);
+  const lng = Number(location.longitude);
+  const accuracy = Number(location.accuracy) || 0;
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+  latValue.textContent = lat.toFixed(6);
+  lngValue.textContent = lng.toFixed(6);
+  accuracyValue.textContent = accuracy.toFixed(1) + " m";
+
+  const speed = Number(location.speed);
+  speedValue.textContent = Number.isFinite(speed) && speed >= 0
+    ? (speed * 3.6).toFixed(2) + " km/h"
+    : "—";
+
+  lastUpdateValue.textContent = location.timestamp
+    ? new Date(Number(location.timestamp)).toLocaleString()
+    : new Date().toLocaleString();
+
+  if (!marker) {
+    marker = L.marker([lat, lng], {
+      icon: locationIcon(),
+      title: role === "host" ? "My Live Location" : "Shared Live Location"
+    }).addTo(map);
+  } else {
+    marker.setLatLng([lat, lng]);
+  }
+
+  marker.bindPopup(
+    "<b>" + (role === "host" ? "My Live Location" : "Shared Live Location") +
+    "</b><br>Latitude: " + lat.toFixed(6) +
+    "<br>Longitude: " + lng.toFixed(6) +
+    "<br>Accuracy: " + accuracy.toFixed(1) + " m"
+  );
+
+  if (!accuracyCircle) {
+    accuracyCircle = L.circle([lat, lng], { radius: accuracy, weight: 1, fillOpacity: .12 }).addTo(map);
+  } else {
+    accuracyCircle.setLatLng([lat, lng]);
+    accuracyCircle.setRadius(accuracy);
+  }
+
+  if (role === "host") {
+    localTrack.push([lat, lng]);
+    trackLine.setLatLngs(localTrack);
+  }
+
+  centerBtn.disabled = false;
+  mobileCenterBtn.disabled = false;
+
+  map.setView([lat, lng], Math.max(map.getZoom(), 16), { animate: true });
+}
+
+async function createSession() {
+  createBtn.disabled = true;
+  setStatus(createStatus, "Creating your temporary live-location session…");
+
+  try {
+    const response = await fetch("/api/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ duration_minutes: Number(duration.value) })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || "Could not create session.");
+
+    token = data.public_token;
+    saveHostSecret(data.host_secret);
+
+    shareInput.value = window.location.origin + data.share_url;
+    sessionShareInput.value = shareInput.value;
+    createdBox.classList.remove("hidden");
+
+    setStatus(
+      createStatus,
+      "<b>Live link created.</b><br>Expires: " + new Date(data.expires_at).toLocaleString(),
+      "active"
+    );
+  } catch (error) {
+    setStatus(createStatus, error.message, "error");
+  } finally {
+    createBtn.disabled = false;
+  }
+}
+
+function openHost() {
+  if (!token) return;
+  window.location.href = "/share/" + encodeURIComponent(token) + "?host=1";
+}
+
+function openViewer() {
+  const raw = joinInput.value.trim();
+  if (!raw) {
+    alert("Paste the share link first.");
+    return;
+  }
+
+  try {
+    const url = new URL(raw);
+    if (url.origin !== window.location.origin || !url.pathname.startsWith("/share/")) {
+      alert("Use a /share/... link generated by this application.");
+      return;
+    }
+    window.location.href = url.pathname + url.search;
+  } catch {
+    alert("Please enter a valid share link.");
+  }
+}
+
+function connectSocket() {
+  if (!token) return;
+
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  let url = protocol + "//" + window.location.host + "/ws/" + encodeURIComponent(token);
+  const secret = hostSecret();
+
+  if (secret) {
+    url += "?host_secret=" + encodeURIComponent(secret);
+  }
+
+  setConnection("Connecting…", false);
+  socket = new WebSocket(url);
+
+  socket.addEventListener("open", () => {
+    setConnection("Live connection", true);
+    setStatus(sessionStatus, "Real-time connection established.", "active");
+  });
+
+  socket.addEventListener("message", event => {
+    let message;
+    try { message = JSON.parse(event.data); } catch { return; }
+
+    if (message.type === "role") {
+      role = message.role;
+      sessionShareInput.value = currentShareUrl();
+      expiresValue.textContent = new Date(message.expires_at).toLocaleString();
+
+      if (role === "host") {
+        roleBadge.textContent = "Host";
+        roleBadge.className = "role-badge host";
+        sessionTitle.textContent = "My Live Location";
+        roleText.textContent = "You are sharing this device's live location.";
+        startBtn.classList.remove("hidden");
+        stopBtn.classList.remove("hidden");
+        mobileActionBar.classList.remove("viewer");
+        syncStartStopButtons();
+        revokeBtn.classList.remove("hidden");
+        hostNotice.classList.remove("hidden");
+        viewerNotice.classList.add("hidden");
+        setStatus(sessionStatus, "<b>Host connected.</b><br>Start GPS when you're ready to share.", "active");
+      } else {
+        roleBadge.textContent = "Viewer";
+        roleBadge.className = "role-badge viewer";
+        sessionTitle.textContent = "Shared Live Location";
+        roleText.textContent = "View-only shared location.";
+        startBtn.classList.add("hidden");
+        stopBtn.classList.add("hidden");
+        mobileStartBtn.classList.add("hidden");
+        mobileStopBtn.classList.add("hidden");
+        mobileActionBar.classList.add("viewer");
+        revokeBtn.classList.add("hidden");
+        hostNotice.classList.add("hidden");
+        viewerNotice.classList.remove("hidden");
+      }
+    }
+
+    if (message.type === "host_status") {
+      sessionStatusValue.textContent = message.online ? "Host online" : "Host offline";
+      if (role === "viewer") {
+        setStatus(
+          sessionStatus,
+          message.online ? "Location owner is online." : "Location owner is offline. Waiting for an update…"
+        );
+      }
+    }
+
+    if (message.type === "location") {
+      renderLocation(message.location);
+      sessionStatusValue.textContent = "Location available";
+
+      if (role === "viewer") {
+        setStatus(sessionStatus, "<b>Live location received.</b><br>New points are being saved in PostGIS.", "active");
+      }
+
+      refreshStats();
+    }
+
+    if (message.type === "session_closed") {
+      stopTracking(false);
+      startBtn.disabled = true;
+      stopBtn.disabled = true;
+      mobileStartBtn.disabled = true;
+      mobileStopBtn.disabled = true;
+      setStatus(sessionStatus, "<b>Session closed.</b><br>" + (message.reason || "The session is no longer available."), "error");
+      setConnection("Session closed", false);
+    }
+
+    if (message.type === "error") {
+      setStatus(sessionStatus, message.message, "error");
+    }
+  });
+
+  socket.addEventListener("close", () => {
+    stopTracking(false);
+    setConnection("Offline", false);
+
+    if (!sessionStatus.classList.contains("error")) {
+      setStatus(sessionStatus, "Real-time connection closed. Refresh to reconnect.", "error");
+    }
+  });
+
+  socket.addEventListener("error", () => {
+    setConnection("Connection error", false);
+    setStatus(sessionStatus, "WebSocket error. Check FastAPI, PostgreSQL and the public HTTPS connection.", "error");
+  });
+}
+
+function sendGpsPosition(position) {
+  if (!socket || socket.readyState !== WebSocket.OPEN || role !== "host") return;
+
+  const c = position.coords;
+  socket.send(JSON.stringify({
+    type: "location",
+    latitude: c.latitude,
+    longitude: c.longitude,
+    accuracy: c.accuracy,
+    speed: c.speed,
+    heading: c.heading,
+    timestamp: position.timestamp
+  }));
+}
+
+function gpsError(error) {
+  let message = "Unable to get your location.";
+  if (error.code === error.PERMISSION_DENIED) message = "Location permission was denied. Allow location access and try again.";
+  else if (error.code === error.POSITION_UNAVAILABLE) message = "Location information is unavailable.";
+  else if (error.code === error.TIMEOUT) message = "GPS request timed out.";
+
+  setStatus(sessionStatus, message, "error");
+  stopTracking(false);
+}
+
+function syncStartStopButtons() {
+  const active = watchId !== null;
+  startBtn.disabled = active;
+  stopBtn.disabled = !active;
+  mobileStartBtn.disabled = active;
+  mobileStopBtn.disabled = !active;
+  mobileStartBtn.classList.toggle("hidden", active || role !== "host");
+  mobileStopBtn.classList.toggle("hidden", !active || role !== "host");
+}
+
+function startTracking() {
+  if (role !== "host") return;
+
+  if (!navigator.geolocation) {
+    setStatus(sessionStatus, "This browser does not support geolocation.", "error");
+    return;
+  }
+
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    setStatus(sessionStatus, "Real-time connection is not open.", "error");
+    return;
+  }
+
+  if (watchId !== null) return;
+
+  localTrack = [];
+  trackLine.setLatLngs([]);
+
+  watchId = navigator.geolocation.watchPosition(sendGpsPosition, gpsError, {
+    enableHighAccuracy: true,
+    maximumAge: 5000,
+    timeout: 15000
+  });
+
+  syncStartStopButtons();
+  setStatus(sessionStatus, "<b>Live location active.</b><br>New GPS points are being stored in PostGIS.", "active");
+}
+
+function stopTracking(showStatus = true) {
+  if (watchId !== null) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }
+
+  if (role === "host") syncStartStopButtons();
+
+  if (showStatus) {
+    setStatus(sessionStatus, "Live location stopped. Your stored track remains available.");
+  }
+}
+
+async function refreshStats() {
+  if (!token) return;
+
+  try {
+    const response = await fetch("/api/sessions/" + encodeURIComponent(token) + "/stats");
+    if (!response.ok) return;
+
+    const data = await response.json();
+    pointCount.textContent = data.point_count;
+    distanceKm.textContent = data.distance_km + " km";
+    durationMin.textContent = data.duration_minutes + " min";
+    maxSpeed.textContent = data.max_speed_kmh + " km/h";
+    avgSpeed.textContent = data.avg_speed_kmh + " km/h";
+  } catch {
+    // Keep the live map usable if stats are temporarily unavailable.
+  }
+}
+
+async function downloadGeoJSON() {
+  if (!token) return;
+
+  try {
+    const response = await fetch("/api/sessions/" + encodeURIComponent(token) + "/track.geojson");
+    if (!response.ok) {
+      alert("Could not download the track.");
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "live-location-track.geojson";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch {
+    alert("Could not download the track.");
+  }
+}
+
+async function revokeSession() {
+  const secret = hostSecret();
+
+  if (!token || !secret) {
+    alert("Host credentials are not available.");
+    return;
+  }
+
+  if (!confirm("Revoke this live-location link? Viewers will lose access.")) return;
+
+  try {
+    const response = await fetch(
+      "/api/sessions/" + encodeURIComponent(token) + "/revoke?host_secret=" + encodeURIComponent(secret),
+      { method: "POST" }
+    );
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || "Could not revoke session.");
+
+    stopTracking(false);
+    sessionStorage.removeItem("host_secret_" + token);
+    if (socket) socket.close();
+    window.location.href = "/";
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function copyText(value, button, defaultLabel) {
+  try {
+    await navigator.clipboard.writeText(value);
+    button.textContent = "Copied!";
+    setTimeout(() => { button.textContent = defaultLabel; }, 1200);
+  } catch {
+    const fallback = document.createElement("textarea");
+    fallback.value = value;
+    document.body.appendChild(fallback);
+    fallback.select();
+    document.execCommand("copy");
+    fallback.remove();
+    button.textContent = "Copied!";
+    setTimeout(() => { button.textContent = defaultLabel; }, 1200);
+  }
+}
+
+function centerOnLocation() {
+  if (!marker || !map) return;
+  map.setView(marker.getLatLng(), Math.max(map.getZoom(), 17), { animate: true });
+  marker.openPopup();
+}
+
+createBtn.addEventListener("click", createSession);
+copyBtn.addEventListener("click", () => copyText(shareInput.value, copyBtn, "Copy Link"));
+openHostBtn.addEventListener("click", openHost);
+revokeCreatedBtn.addEventListener("click", revokeSession);
+joinBtn.addEventListener("click", openViewer);
+startBtn.addEventListener("click", startTracking);
+stopBtn.addEventListener("click", () => stopTracking(true));
+centerBtn.addEventListener("click", centerOnLocation);
+backBtn.addEventListener("click", () => { window.location.href = "/"; });
+revokeBtn.addEventListener("click", revokeSession);
+statsBtn.addEventListener("click", refreshStats);
+geojsonBtn.addEventListener("click", downloadGeoJSON);
+
+mobileStartBtn.addEventListener("click", startTracking);
+mobileStopBtn.addEventListener("click", () => stopTracking(true));
+mobileCenterBtn.addEventListener("click", centerOnLocation);
+mobileBackBtn.addEventListener("click", () => { window.location.href = "/"; });
+sessionCopyBtn.addEventListener("click", () => copyText(sessionShareInput.value, sessionCopyBtn, "Copy"));
+
+window.addEventListener("load", () => {
+  const pathToken = tokenFromPath();
+  setConnection(pathToken ? "Connecting…" : "Ready", false);
+
+  if (!pathToken) return;
+
+  token = pathToken;
+  sessionShareInput.value = currentShareUrl();
+  homePanel.classList.add("hidden");
+  sessionPanel.classList.remove("hidden");
+
+  initMap();
+  connectSocket();
+  refreshStats();
+});
+
+window.addEventListener("resize", () => {
+  if (map) map.invalidateSize();
+});
+</script>
+</body>
+</html>
