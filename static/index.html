@@ -116,9 +116,18 @@ main.app-main{flex:1;width:100%;max-width:1400px;margin:0 auto;padding:16px}
 .session-subtitle{margin-top:4px;color:var(--muted);font-size:12px}
 .toolbar-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 
-.session-layout{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:12px;align-items:stretch}
-.map-panel{padding:0;overflow:hidden;min-height:0}
-#map{height:calc(100vh - 160px);min-height:560px;width:100%;border-radius:var(--radius)}
+.session-layout{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:12px;align-items:start}
+.map-panel{padding:0;overflow:hidden;min-height:0;height:calc(100vh - 150px);position:sticky;top:88px}
+#map{height:100%;min-height:0;width:100%;border-radius:var(--radius)}
+
+/* Keep Leaflet controls inside the map and below the sticky header. */
+.leaflet-top{top:12px}
+.leaflet-bottom{bottom:12px}
+.leaflet-left{left:12px}
+.leaflet-right{right:12px}
+.leaflet-control-zoom a{width:34px;height:34px;line-height:34px;font-size:18px}
+.leaflet-control-layers{border:1px solid rgba(15,23,42,.14);border-radius:10px;box-shadow:0 4px 14px rgba(15,23,42,.16)}
+.leaflet-control-layers-toggle{width:38px;height:38px}
 
 .side-panel{padding:13px;display:flex;flex-direction:column;gap:10px;min-width:0}
 .side-section{border:1px solid var(--border);border-radius:15px;background:#fff;padding:12px}
@@ -145,8 +154,9 @@ main.app-main{flex:1;width:100%;max-width:1400px;margin:0 auto;padding:16px}
 @media (max-width: 980px){
   main.app-main{padding:10px}
   .home-split{grid-template-columns:1fr}
-  .session-layout{grid-template-columns:1fr}
-  #map{height:62vh;min-height:420px}
+  .session-layout{grid-template-columns:1fr;align-items:start}
+  .map-panel{height:62vh;min-height:420px;position:relative;top:auto}
+  #map{height:100%;min-height:0}
   .side-panel{display:grid;grid-template-columns:1fr 1fr;align-items:start}
   .side-panel .side-section:first-child,.side-panel .session-share,.side-panel .notice,.side-panel #revokeBtn{grid-column:1/-1}
 }
@@ -176,8 +186,14 @@ main.app-main{flex:1;width:100%;max-width:1400px;margin:0 auto;padding:16px}
   .session-subtitle{font-size:11px}
   .toolbar-actions{display:none}
   .session-layout{display:flex;flex-direction:column;gap:0}
-  .map-panel{border-radius:0;border-left:0;border-right:0}
-  #map{height:60vh;min-height:390px;border-radius:0}
+  .map-panel{border-radius:0;border-left:0;border-right:0;height:60vh;min-height:390px;position:relative;top:auto}
+  #map{height:100%;min-height:0;border-radius:0}
+  .leaflet-top{top:10px}
+  .leaflet-bottom{bottom:10px}
+  .leaflet-left{left:10px}
+  .leaflet-right{right:10px}
+  .leaflet-control-zoom a{width:36px;height:36px;line-height:36px}
+  .leaflet-control-layers-toggle{width:40px;height:40px}
   .side-panel{display:block;padding:10px 10px 90px;background:var(--bg)}
   .side-section{padding:11px;border-radius:14px;margin-bottom:9px}
   .metrics-grid{grid-template-columns:1fr 1fr 1fr}
@@ -194,7 +210,8 @@ main.app-main{flex:1;width:100%;max-width:1400px;margin:0 auto;padding:16px}
 
 @media (max-width: 390px){
   .metrics-grid{grid-template-columns:1fr 1fr}
-  #map{height:57vh;min-height:360px}
+  .map-panel{height:57vh;min-height:360px}
+  #map{height:100%;min-height:0}
 }
 </style>
 </head>
@@ -220,9 +237,9 @@ main.app-main{flex:1;width:100%;max-width:1400px;margin:0 auto;padding:16px}
   <main class="app-main">
     <section id="homePanel" class="panel home-panel">
       <div class="hero">
-        <div class="eyebrow">● Mobile-first Web GIS</div>
+        <div class="eyebrow">● Sharing live location</div>
         <h1>Share your live location privately</h1>
-        <p>Create a temporary link, start GPS, and let another person follow your location from a different network. Your session and track history are stored in PostgreSQL/PostGIS.</p>
+        <p>Create a temporary link, start GPS, and let another person follow your location. Your session and track history are stored in PostgreSQL/PostGIS.</p>
       </div>
 
       <div class="section-block">
@@ -283,7 +300,7 @@ main.app-main{flex:1;width:100%;max-width:1400px;margin:0 auto;padding:16px}
         </div>
       </div>
 
-      <div class="footer-note">Live Location Web GIS • Phase 5A UI redesign • Backend/API unchanged</div>
+      <div class="footer-note">Live Location Web GIS</div>
     </section>
 
     <section id="sessionPanel" class="hidden">
